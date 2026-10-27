@@ -46,11 +46,15 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Type } from "typebox";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join, sep } from "node:path";
 
 // ── constants (mirror graft's own floors/caps) ─────────────────────────────
 
 const GRAFT_BIN = process.env.GRAFT_BIN ?? "graft";
+// npm's .cmd shims cannot be passed to execFile on Windows. Accept the
+// package's JS entrypoint instead, without enabling shell interpolation.
+const GRAFT_IS_SCRIPT = /\.[cm]?js$/i.test(GRAFT_BIN);
+const GRAFT_COMMAND = GRAFT_IS_SCRIPT ? "node" : GRAFT_BIN;
 const TOOL_TIMEOUT_MS = Number(process.env.GRAFT_TIMEOUT_MS ?? 30_000);
 /** Prompt-hook ask budget: the 8s hook budget minus headroom for our own work. */
 const ASK_TIMEOUT_MS = 6_000;
@@ -75,8 +79,8 @@ const TALLY_RE = /graft\s+saved\s*[~≈]?\s*[\d,.]+\s*[km]?\s*(?:tok|tokens)/i;
 function runGraftAsync(args: string[], cwd: string, timeout = TOOL_TIMEOUT_MS): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
-      GRAFT_BIN,
-      args,
+      GRAFT_COMMAND,
+      GRAFT_IS_SCRIPT ? [GRAFT_BIN, ...args] : args,
       { cwd, timeout, maxBuffer: 10 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {
@@ -95,7 +99,7 @@ function runGraftAsync(args: string[], cwd: string, timeout = TOOL_TIMEOUT_MS): 
 function graftJson(dir: string, args: string[], timeout: number): any | null {
   try {
     const full = withContextDirArg(dir, args);
-    const out = execFileSync(GRAFT_BIN, full, {
+    const out = execFileSync(GRAFT_COMMAND, GRAFT_IS_SCRIPT ? [GRAFT_BIN, ...full] : full, {
       cwd: dir, encoding: "utf8", timeout, stdio: ["ignore", "pipe", "ignore"],
     });
     return JSON.parse(out);
@@ -473,7 +477,7 @@ function editedFilePath(toolName: string, input: any): string | null {
 function underGraft(d: string, file: string): boolean {
   const abs = isAbsolute(file) ? file : join(d, file);
   const ctx = contextDir(d);
-  return abs === ctx || abs.startsWith(`${ctx}/`);
+  return abs === ctx || abs.startsWith(`${ctx}${sep}`);
 }
 
 function toolText(text: string) {
@@ -723,14 +727,15 @@ export default function (pi: ExtensionAPI) {
     try { patchStats(cwd, { syncing: true, syncStartedAt: new Date().toISOString() }); } catch { /* ignore */ }
     await refreshStatus(ctx, cwd);
     const dir = cwd;
-    const bin = GRAFT_BIN;
+    const bin = JSON.stringify({ command: GRAFT_COMMAND, prefix: GRAFT_IS_SCRIPT ? [GRAFT_BIN] : [] });
     const syncScript = `
 const {execFileSync} = require("node:child_process");
 const {readFileSync, writeFileSync, mkdirSync, renameSync, existsSync} = require("node:fs");
-const {join, dirname} = require("node:path");
+const {join, dirname, isAbsolute} = require("node:path");
 const [dir, bin] = process.argv.slice(-2);
+const {command, prefix} = JSON.parse(bin);
 const ctxDir = process.env.GRAFT_DIR
-  ? (process.env.GRAFT_DIR.startsWith("/") ? process.env.GRAFT_DIR : join(dir, process.env.GRAFT_DIR))
+  ? (isAbsolute(process.env.GRAFT_DIR) ? process.env.GRAFT_DIR : join(dir, process.env.GRAFT_DIR))
   : join(dir, "graft");
 const statsP = join(ctxDir, ".cache", "stats.json");
 const wiringP = join(ctxDir, ".graph", "wiring.json");
@@ -742,7 +747,7 @@ const writeAtomic = (p, v) => {
   catch { try { require("node:fs").rmSync(tmp, { force: true }); } catch {} }
 };
 try {
-  execFileSync(bin, ["build", "."], { cwd: dir, stdio: "ignore", timeout: ${BUILD_TIMEOUT_MS} });
+  execFileSync(command, [...prefix, "build", "."], { cwd: dir, stdio: "ignore", timeout: ${BUILD_TIMEOUT_MS} });
   const w = readJ(wiringP);
   if (!w) { writeAtomic(statsP, { ...(readJ(statsP) ?? {}), syncing: false, syncStartedAt: null }); process.exit(0); }
   const nodes = w.nodes ?? [], edges = w.edges ?? [];
@@ -760,7 +765,7 @@ try {
 }
 `;
     try {
-      const child = spawn(process.execPath, ["-e", syncScript, dir, bin], {
+      const child = spawn("node", ["-e", syncScript, dir, bin], {
         cwd: dir, detached: true, stdio: "ignore", windowsHide: true,
       });
       child.unref();

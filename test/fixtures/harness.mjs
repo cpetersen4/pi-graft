@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const FAKE_GRAFT = join(here, "fake-graft.sh");
+export const FAKE_GRAFT = join(here, "fake-graft.mjs");
 
 /** A repo dir with a built-looking graph and a call log for the fake CLI. */
 export function makeRepo() {

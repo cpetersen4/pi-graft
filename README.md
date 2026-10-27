@@ -106,9 +106,19 @@ dollar figure — tokens alone, never priced by hand.)
 
 | Env | Default | Meaning |
 |---|---|---|
-| `GRAFT_BIN` | `graft` | graft binary (absolute path if not on PATH) |
+| `GRAFT_BIN` | `graft` | executable or absolute `.js`/`.mjs`/`.cjs` CLI entrypoint (scripts run through `node`, without a shell) |
 | `GRAFT_TIMEOUT_MS` | `30000` | per-command timeout for tools/commands |
 | `GRAFT_DIR` | — | custom graph dir (same override the CLI honors) |
+
+On Windows, use the `@nanonets/graft/dist/bin/graft.js` entrypoint rather
+than npm's `graft.cmd` shim: `execFile` cannot launch `.cmd` files. `node`
+must be on PATH. This applies to tools, synchronous hooks and detached builds.
+The detached worker also uses `node`, not the host executable (OMP bundles
+its own runtime). `GRAFT_DIR` accepts Windows absolute paths.
+
+OMP users install via `omp plugin install npm:pi-graft` (or
+`omp plugin link <checkout>` for this patched source); `extensions`
+configuration contains file paths, not `npm:` package specifications.
 
 ## Upstream PR
 
