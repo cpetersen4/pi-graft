@@ -47,10 +47,14 @@ import { Type } from "typebox";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, sep } from "node:path";
+import { createRequire } from "node:module";
 
 // ── constants (mirror graft's own floors/caps) ─────────────────────────────
 
-const GRAFT_BIN = process.env.GRAFT_BIN ?? "graft";
+const GRAFT_BIN = process.env.GRAFT_BIN ?? join(
+  dirname(createRequire(import.meta.url).resolve("@nanonets/graft/package.json")),
+  "dist", "bin", "graft.js",
+);
 // npm's .cmd shims cannot be passed to execFile on Windows. Accept the
 // package's JS entrypoint instead, without enabling shell interpolation.
 const GRAFT_IS_SCRIPT = /\.[cm]?js$/i.test(GRAFT_BIN);
