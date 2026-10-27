@@ -27,12 +27,22 @@ never fails the turn.
 
 ## Prerequisites
 
+The extension depends on `@nanonets/graft` and resolves that package directly;
+it does not search PATH for an executable named `graft`. `node` must be on PATH.
+An explicit `GRAFT_BIN` still overrides the dependency for custom deployments.
+
+For ordinary shell commands, install the matching CLI separately if needed:
+
 ```bash
-npm install -g @nanonets/graft   # the graft CLI
-graft build                      # build graft/ in your repo (deterministic, no key, $0)
-# optional, for LLM concept nodes:
-graft build --deep               # needs GRAFT_API_KEY (or --provider/--model/--api-key)
+pnpm add -g @nanonets/graft
+graft build                      # structural graph: deterministic, no key
+# optional, only when explicitly requested:
+graft build --deep               # uses the configured LLM provider
 ```
+
+On Windows without C++ build tools, use `--ignore-scripts`; unavailable native
+grammars use upstream's basic WASM parsers. If another package already owns the
+`graft` command, preserve it and use a dedicated launcher for this CLI.
 
 ## Install this package
 
@@ -106,9 +116,19 @@ dollar figure — tokens alone, never priced by hand.)
 
 | Env | Default | Meaning |
 |---|---|---|
-| `GRAFT_BIN` | `graft` | graft binary (absolute path if not on PATH) |
+| `GRAFT_BIN` | bundled `@nanonets/graft` JS entrypoint | executable or absolute `.js`/`.mjs`/`.cjs` CLI entrypoint (scripts run through `node`, without a shell) |
 | `GRAFT_TIMEOUT_MS` | `30000` | per-command timeout for tools/commands |
 | `GRAFT_DIR` | — | custom graph dir (same override the CLI honors) |
+
+On Windows, use the `@nanonets/graft/dist/bin/graft.js` entrypoint rather
+than npm's `graft.cmd` shim: `execFile` cannot launch `.cmd` files. `node`
+must be on PATH. This applies to tools, synchronous hooks and detached builds.
+The detached worker also uses `node`, not the host executable (OMP bundles
+its own runtime). `GRAFT_DIR` accepts Windows absolute paths.
+
+OMP users install via `omp plugin install npm:pi-graft` (or
+`omp plugin link <checkout>` for this patched source); `extensions`
+configuration contains file paths, not `npm:` package specifications.
 
 ## Upstream PR
 

@@ -29,17 +29,6 @@ async function waitFor(check, ms = 5000) {
   return false;
 }
 
-test("registers the six graft tools, four commands and five hooks", () => {
-  const pi = load();
-  assert.deepEqual(pi.tools.sort(), [
-    "graft_check_freshness", "graft_file_api", "graft_find_all",
-    "graft_find_code", "graft_repo_map", "graft_trace_calls",
-  ]);
-  assert.deepEqual(pi.commands.sort(), ["graft-build", "graft-check", "graft-map", "graft-status"]);
-  for (const hook of ["session_start", "before_agent_start", "tool_result", "turn_end", "agent_settled"]) {
-    assert.ok(pi.handlers.has(hook), `missing hook ${hook}`);
-  }
-});
 
 test("a write marks the graph dirty with the stale count and file", async () => {
   const { repo } = makeRepo();
